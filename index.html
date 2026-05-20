@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Metaverse Entangled — Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080810;
+    --surface: #0f0f1a;
+    --surface2: #16162a;
+    --border: #ffffff12;
+    --border-active: #6c63ff55;
+    --accent: #6c63ff;
+    --accent2: #00d4ff;
+    --accent3: #ff6b9d;
+    --text: #e8e8f0;
+    --text-muted: #6b6b8a;
+    --success: #00e5a0;
+    --error: #ff4757;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Starfield background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, #fff6 0%, transparent 100%),
+      radial-gradient(1px 1px at 80% 10%, #fff4 0%, transparent 100%),
+      radial-gradient(1.5px 1.5px at 50% 60%, #fff5 0%, transparent 100%),
+      radial-gradient(1px 1px at 10% 80%, #fff3 0%, transparent 100%),
+      radial-gradient(1px 1px at 90% 70%, #fff4 0%, transparent 100%),
+      radial-gradient(1px 1px at 35% 90%, #fff3 0%, transparent 100%),
+      radial-gradient(1px 1px at 65% 20%, #fff5 0%, transparent 100%),
+      radial-gradient(1px 1px at 75% 85%, #fff3 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Ambient glow */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #6c63ff18 0%, transparent 70%);
+    top: -200px; left: -200px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    margin-bottom: 56px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 28px;
+  }
+
+  .logo {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .logo-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--accent2);
+    text-transform: uppercase;
+  }
+
+  .logo-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .logo-sub {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  /* Mode tabs */
+  .mode-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px;
+    margin-bottom: 40px;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 12px 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .tab:hover { color: var(--text); }
+
+  .tab.active {
+    background: var(--surface2);
+    color: var(--text);
+    box-shadow: 0 0 0 1px var(--border-active), 0 4px 16px #6c63ff20;
+  }
+
+  .tab-icon { font-size: 16px; }
+
+  /* Panels */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Section */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+    transition: border-color 0.2s;
+  }
+
+  .section:hover { border-color: var(--border-active); }
+
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--accent2);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 36px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: #6c63ff08;
+  }
+
+  .upload-zone.uploaded {
+    border-color: var(--success);
+    border-style: solid;
+    background: #00e5a008;
+  }
+
+  .upload-zone input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .upload-icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .upload-text {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+
+  .upload-hint {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .upload-filename {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--success);
+    margin-top: 8px;
+    font-weight: 500;
+  }
+
+  /* Progress bar inside upload */
+  .upload-progress {
+    position: absolute;
+    bottom: 0; left: 0;
+    height: 2px;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  /* Segments */
+  .segments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .segment-row {
+    display: grid;
+    grid-template-columns: 120px 120px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    animation: slideIn 0.2s ease;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .segment-num {
+    position: absolute;
+    top: -8px; left: 12px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+
+  .input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+  }
+
+  .input-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  input[type="text"], input[type="time"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 8px 10px;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+
+  input[type="text"]:focus, input[type="time"]:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px #6c63ff20;
+  }
+
+  .delete-btn {
+    width: 32px; height: 32px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .delete-btn:hover {
+    border-color: var(--error);
+    color: var(--error);
+    background: #ff475710;
+  }
+
+  .add-segment-btn {
+    width: 100%;
+    padding: 11px;
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .add-segment-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: #6c63ff08;
+  }
+
+  /* Export button */
+  .export-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 8px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .export-btn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #ffffff15 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .export-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 32px #6c63ff40;
+  }
+
+  .export-btn:active { transform: translateY(0); }
+  .export-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* Status */
+  .status-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-top: 16px;
+    display: none;
+  }
+
+  .status-box.visible { display: block; }
+
+  .status-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent2);
+    animation: pulse 1.5s infinite;
+    flex-shrink: 0;
+  }
+
+  .status-dot.done { background: var(--success); animation: none; }
+  .status-dot.error { background: var(--error); animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+  }
+
+  .status-text {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-muted);
+    flex: 1;
+  }
+
+  .progress-bar-wrap {
+    background: var(--bg);
+    border-radius: 4px;
+    height: 3px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 4px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  .download-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    background: var(--success);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+
+  .download-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px #00e5a040;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+  }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  @media (max-width: 600px) {
+    .segment-row { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; }
+    .segment-row .input-group:last-of-type { grid-column: 1 / -1; }
+    .two-col { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo">
+      <span class="logo-eyebrow">Local Studio</span>
+      <span class="logo-title">Metaverse Entangled</span>
+      <span class="logo-sub">Podcast Editor — v1.0</span>
+    </div>
+  </header>
+
+  <!-- Mode Tabs -->
+  <div class="mode-tabs">
+    <button class="tab active" onclick="switchTab('shorts')">
+      <span class="tab-icon">✦</span> Shorts
+    </button>
+    <button class="tab" onclick="switchTab('full')">
+      <span class="tab-icon">◈</span> Full Episode
+    </button>
+  </div>
+
+  <!-- SHORTS PANEL -->
+  <div class="panel active" id="panel-shorts">
+
+    <div class="section">
+      <div class="section-label">Zoom Recording</div>
+      <div class="upload-zone" id="zoom-upload-zone" onclick="document.getElementById('zoom-file').click()">
+        <input type="file" id="zoom-file" accept="video/*" onchange="handleUpload(this, 'zoom')">
+        <span class="upload-icon">⬡</span>
+        <div class="upload-text">Drop your Zoom recording here</div>
+        <div class="upload-hint">MP4 · side-by-side layout · you on left, guest on right</div>
+        <div class="upload-filename" id="zoom-filename"></div>
+        <div class="upload-progress" id="zoom-progress"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Background Animation <span style="color:var(--text-muted);font-size:10px;letter-spacing:0">(optional)</span></div>
+      <div class="upload-zone" id="shorts-bg-upload-zone" onclick="document.getElementById('shorts-bg-file').click()">
+        <input type="file" id="shorts-bg-file" accept="video/*" onchange="handleUpload(this, 'shorts-bg')">
+        <span class="upload-icon">◎</span>
+        <div class="upload-text">Drop your background loop here</div>
+        <div class="upload-hint">MP4 · space / science animation · loops automatically · leave empty for dark bg</div>
+        <div class="upload-filename" id="shorts-bg-filename"></div>
+        <div class="upload-progress" id="shorts-bg-progress"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Segments</div>
+      <div class="segments-list" id="segments-list"></div>
+      <button class="add-segment-btn" onclick="addSegment()">+ Add Segment</button>
+    </div>
+
+    <button class="export-btn" onclick="exportShorts()">Export Shorts →</button>
+
+    <div class="status-box" id="shorts-status">
+      <div class="status-header">
+        <div class="status-dot" id="shorts-dot"></div>
+        <div class="status-text" id="shorts-status-text">Starting...</div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="shorts-progress-bar"></div>
+      </div>
+      <div id="shorts-download"></div>
+    </div>
+
+  </div>
+
+  <!-- FULL EPISODE PANEL -->
+  <div class="panel" id="panel-full">
+
+    <div class="section">
+      <div class="section-label">Zoom Recording</div>
+      <div class="upload-zone" id="zoom-full-upload-zone" onclick="document.getElementById('zoom-full-file').click()">
+        <input type="file" id="zoom-full-file" accept="video/*" onchange="handleUpload(this, 'zoom-full')">
+        <span class="upload-icon">⬡</span>
+        <div class="upload-text">Drop your Zoom recording here</div>
+        <div class="upload-hint">MP4 · full episode will be processed</div>
+        <div class="upload-filename" id="zoom-full-filename"></div>
+        <div class="upload-progress" id="zoom-full-progress"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Background Animation</div>
+      <div class="upload-zone" id="bg-upload-zone" onclick="document.getElementById('bg-file').click()">
+        <input type="file" id="bg-file" accept="video/*" onchange="handleUpload(this, 'bg')">
+        <span class="upload-icon">◎</span>
+        <div class="upload-text">Drop your background loop here</div>
+        <div class="upload-hint">MP4 · space / science / particle animation · loops automatically</div>
+        <div class="upload-filename" id="bg-filename"></div>
+        <div class="upload-progress" id="bg-progress"></div>
+      </div>
+    </div>
+
+    <button class="export-btn" onclick="exportFull()">Export Full Episode →</button>
+
+    <div class="status-box" id="full-status">
+      <div class="status-header">
+        <div class="status-dot" id="full-dot"></div>
+        <div class="status-text" id="full-status-text">Starting...</div>
+      </div>
+      <div class="progress-bar-wrap">
+        <div class="progress-bar-fill" id="full-progress-bar"></div>
+      </div>
+      <div id="full-download"></div>
+    </div>
+
+  </div>
+
+  <footer>METAVERSE ENTANGLED STUDIO · LOCAL · ALL FILES STAY ON YOUR MACHINE</footer>
+
+</div>
+
+<script>
+  const uploaded = {}; // key → server filename
+  let segmentCount = 0;
+
+  function switchTab(mode) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    document.getElementById(`panel-${mode}`).classList.add('active');
+  }
+
+  async function handleUpload(input, key) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const zone = document.getElementById(`${key}-upload-zone`);
+    const filenameEl = document.getElementById(`${key}-filename`);
+    const progressEl = document.getElementById(`${key}-progress`);
+
+    zone.classList.remove('uploaded');
+    filenameEl.textContent = `Uploading ${file.name}...`;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // Simulate progress (XHR for real progress)
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/upload');
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = (e.loaded / e.total * 100).toFixed(0);
+        progressEl.style.width = pct + '%';
+      }
+    };
+
+    xhr.onload = () => {
+      const data = JSON.parse(xhr.responseText);
+      uploaded[key] = data.filename;
+      zone.classList.add('uploaded');
+      progressEl.style.width = '100%';
+      const mins = Math.floor(data.duration / 60);
+      const secs = Math.floor(data.duration % 60);
+      filenameEl.textContent = `✓ ${file.name}  ${mins}m ${secs}s`;
+    };
+
+    xhr.onerror = () => {
+      filenameEl.textContent = '✗ Upload failed';
+    };
+
+    xhr.send(formData);
+  }
+
+  function addSegment() {
+    segmentCount++;
+    const id = segmentCount;
+    const list = document.getElementById('segments-list');
+
+    const row = document.createElement('div');
+    row.className = 'segment-row';
+    row.id = `seg-${id}`;
+    row.innerHTML = `
+      <div class="input-group">
+        <span class="input-label">Start</span>
+        <input type="text" placeholder="02:15" id="seg-${id}-start">
+      </div>
+      <div class="input-group">
+        <span class="input-label">End</span>
+        <input type="text" placeholder="03:45" id="seg-${id}-end">
+      </div>
+      <div class="input-group">
+        <span class="input-label">Caption</span>
+        <input type="text" placeholder="Optional caption text..." id="seg-${id}-caption">
+      </div>
+      <button class="delete-btn" onclick="removeSegment(${id})" title="Remove">✕</button>
+    `;
+    list.appendChild(row);
+  }
+
+  function removeSegment(id) {
+    const el = document.getElementById(`seg-${id}`);
+    if (el) el.remove();
+  }
+
+  function getSegments() {
+    const rows = document.querySelectorAll('#segments-list .segment-row');
+    const segs = [];
+    for (const row of rows) {
+      const id = row.id.replace('seg-', '');
+      const start = document.getElementById(`seg-${id}-start`).value.trim();
+      const end = document.getElementById(`seg-${id}-end`).value.trim();
+      const caption = document.getElementById(`seg-${id}-caption`).value.trim();
+      if (!start || !end) continue;
+      segs.push({ start, end, caption });
+    }
+    return segs;
+  }
+
+  async function exportShorts() {
+    if (!uploaded['zoom']) return alert('Upload your Zoom recording first.');
+    const segs = getSegments();
+    if (segs.length === 0) return alert('Add at least one segment.');
+
+    const statusBox = document.getElementById('shorts-status');
+    const dot = document.getElementById('shorts-dot');
+    const statusText = document.getElementById('shorts-status-text');
+    const progressBar = document.getElementById('shorts-progress-bar');
+    const downloadDiv = document.getElementById('shorts-download');
+
+    statusBox.classList.add('visible');
+    dot.className = 'status-dot';
+    downloadDiv.innerHTML = '';
+    progressBar.style.width = '5%';
+
+    const formData = new FormData();
+    formData.append('zoom_file', uploaded['zoom']);
+    formData.append('segments', JSON.stringify(segs));
+    formData.append('bg_file', uploaded['shorts-bg'] || '');
+
+    const res = await fetch('/export/shorts', { method: 'POST', body: formData });
+    const { job_id } = await res.json();
+
+    pollJob(job_id, segs.length, 'shorts', statusText, dot, progressBar, downloadDiv);
+  }
+
+  async function exportFull() {
+    if (!uploaded['zoom-full']) return alert('Upload your Zoom recording first.');
+    if (!uploaded['bg']) return alert('Upload your background animation first.');
+
+    const statusBox = document.getElementById('full-status');
+    const dot = document.getElementById('full-dot');
+    const statusText = document.getElementById('full-status-text');
+    const progressBar = document.getElementById('full-progress-bar');
+    const downloadDiv = document.getElementById('full-download');
+
+    statusBox.classList.add('visible');
+    dot.className = 'status-dot';
+    downloadDiv.innerHTML = '';
+    progressBar.style.width = '5%';
+    statusText.textContent = 'Processing full episode... this will take a while ☕';
+
+    const formData = new FormData();
+    formData.append('zoom_file', uploaded['zoom-full']);
+    formData.append('bg_file', uploaded['bg']);
+
+    const res = await fetch('/export/full', { method: 'POST', body: formData });
+    const { job_id } = await res.json();
+
+    pollJob(job_id, 1, 'full', statusText, dot, progressBar, downloadDiv);
+  }
+
+  function pollJob(job_id, total, mode, statusText, dot, progressBar, downloadDiv) {
+    const interval = setInterval(async () => {
+      const res = await fetch(`/job/${job_id}`);
+      const job = await res.json();
+
+      if (job.status === 'done') {
+        clearInterval(interval);
+        dot.className = 'status-dot done';
+        statusText.textContent = `Done! ${total > 1 ? total + ' clips ready' : 'Episode ready'}`;
+        progressBar.style.width = '100%';
+        downloadDiv.innerHTML = `
+          <a class="download-btn" href="/download/${job_id}" download>
+            ↓ Download ${total > 1 ? 'Shorts (ZIP)' : 'Episode'}
+          </a>
+        `;
+      } else if (job.status === 'error') {
+        clearInterval(interval);
+        dot.className = 'status-dot error';
+        statusText.textContent = `Error: ${job.error || 'Something went wrong'}`;
+      } else {
+        const progress = job.progress || 0;
+        const pct = total > 1 ? Math.max(5, (progress / total) * 95) : 50;
+        progressBar.style.width = pct + '%';
+        statusText.textContent = job.status || 'Processing...';
+      }
+    }, 1500);
+  }
+
+  // Drag and drop
+  document.querySelectorAll('.upload-zone').forEach(zone => {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      const input = zone.querySelector('input[type="file"]');
+      if (input && e.dataTransfer.files.length) {
+        const dt = new DataTransfer();
+        dt.items.add(e.dataTransfer.files[0]);
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change'));
+      }
+    });
+  });
+
+  // Add first segment by default
+  addSegment();
+</script>
+</body>
+</html>
