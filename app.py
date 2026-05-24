@@ -8,9 +8,11 @@ Open: http://localhost:8000
 import asyncio
 import io
 import json
+import logging
 import os
 import shutil
 import subprocess
+import time
 import uuid
 import zipfile
 from pathlib import Path
@@ -19,19 +21,29 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger("podcast-editor")
+
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-UPLOAD_DIR = Path("./uploads")
-OUTPUT_DIR = Path("./output")
-UPLOAD_DIR.mkdir(exist_ok=True)
-OUTPUT_DIR.mkdir(exist_ok=True)
+BASE_DIR = Path(__file__).resolve().parent
+UPLOAD_DIR = BASE_DIR / "uploads"
+OUTPUT_DIR = BASE_DIR / "output"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 jobs = {}
 
@@ -57,11 +69,28 @@ def get_duration(path: str) -> float:
 
 def run_ffmpeg(cmd: list, job_id: str, label: str):
     jobs[job_id]["status"] = label
+    jobs[job_id]["updated_at"] = time.time()
+    logger.info("[%s] %s", job_id, label)
+    logger.info("[%s] ffmpeg command: %s", job_id, " ".join(cmd))
+    logger.info("[%s] ffmpeg started", job_id)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         jobs[job_id]["status"] = "error"
         jobs[job_id]["error"] = result.stderr[-1000:]
+        jobs[job_id]["updated_at"] = time.time()
+        logger.error("[%s] ffmpeg failed: %s", job_id, result.stderr[-2000:])
         raise RuntimeError(f"ffmpeg failed: {result.stderr[-500:]}")
+    jobs[job_id]["updated_at"] = time.time()
+    logger.info("[%s] ffmpeg finished", job_id)
+
+
+def require_output_file(path: str, job_id: str):
+    output_path = Path(path)
+    if not output_path.exists():
+        raise FileNotFoundError(f"Expected output file was not created: {output_path}")
+    if output_path.stat().st_size == 0:
+        raise RuntimeError(f"Expected output file is empty: {output_path}")
+    logger.info("[%s] output path generated: %s (%s bytes)", job_id, output_path, output_path.stat().st_size)
 
 
 def make_short(input_path: str, start: float, end: float, caption: str,
@@ -155,23 +184,52 @@ def make_full(input_path: str, bg_path: str, output_path: str, job_id: str):
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    with open("index.html") as f:
+    with open(BASE_DIR / "index.html") as f:
         return f.read()
 
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
-    ext = Path(file.filename).suffix
+    if not file.filename:
+        raise HTTPException(400, "No upload filename provided")
+
+    ext = Path(file.filename).suffix.lower()
+    if not ext:
+        ext = ".mp4"
+
     uid = str(uuid.uuid4())[:8]
     filename = f"{uid}{ext}"
     path = UPLOAD_DIR / filename
+
+    logger.info(
+        "Receiving upload field='file' original='%s' content_type='%s' -> %s",
+        file.filename,
+        file.content_type,
+        path,
+    )
+
     with open(path, "wb") as f:
         shutil.copyfileobj(file.file, f)
+
+    size = path.stat().st_size
+    if size == 0:
+        path.unlink(missing_ok=True)
+        logger.warning("Rejected empty upload: %s", file.filename)
+        raise HTTPException(400, "Uploaded file is empty")
+
     try:
         duration = get_duration(str(path))
-    except:
+    except Exception as exc:
+        logger.warning("Could not read duration for %s: %s", path, exc)
         duration = 0
-    return {"filename": filename, "duration": duration}
+
+    logger.info("Saved upload %s (%s bytes, %.2fs)", path, size, duration)
+    return {
+        "filename": filename,
+        "original_filename": file.filename,
+        "size": size,
+        "duration": duration,
+    }
 
 
 @app.post("/export/shorts")
@@ -181,19 +239,51 @@ async def export_shorts(
     bg_file: str = Form(""),
 ):
     job_id = str(uuid.uuid4())[:8]
-    jobs[job_id] = {"status": "starting", "progress": 0, "total": 0}
+    now = time.time()
+    jobs[job_id] = {
+        "status": "queued",
+        "mode": "shorts",
+        "progress": 0,
+        "total": 0,
+        "files": [],
+        "created_at": now,
+        "updated_at": now,
+    }
 
-    segs = json.loads(segments)
+    try:
+        segs = json.loads(segments)
+    except json.JSONDecodeError as exc:
+        jobs[job_id]["status"] = "error"
+        jobs[job_id]["error"] = f"Invalid segments JSON: {exc}"
+        jobs[job_id]["updated_at"] = time.time()
+        raise HTTPException(400, "Invalid segments JSON") from exc
+
+    if not segs:
+        raise HTTPException(400, "At least one segment is required")
+
     jobs[job_id]["total"] = len(segs)
+    jobs[job_id]["updated_at"] = time.time()
 
     input_path = str(UPLOAD_DIR / zoom_file)
     if not os.path.exists(input_path):
+        logger.warning("[%s] Zoom file not found: %s", job_id, input_path)
         raise HTTPException(400, "Zoom file not found")
 
     bg_path = str(UPLOAD_DIR / bg_file) if bg_file else ""
+    if bg_path and not os.path.exists(bg_path):
+        logger.warning("[%s] Background file not found: %s", job_id, bg_path)
+        raise HTTPException(400, "Background file not found")
 
     job_output_dir = OUTPUT_DIR / job_id
-    job_output_dir.mkdir(exist_ok=True)
+    job_output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(
+        "[%s] Starting shorts export zoom=%s bg=%s segments=%s output_dir=%s",
+        job_id,
+        input_path,
+        bg_path or "(dark fallback)",
+        len(segs),
+        job_output_dir,
+    )
 
     async def process():
         try:
@@ -205,14 +295,21 @@ async def export_shorts(
                 out_file = str(job_output_dir / f"short_{i+1:02d}.mp4")
                 label = f"Exporting short {i+1}/{len(segs)}..."
                 jobs[job_id]["progress"] = i
-                make_short(input_path, start, end, caption, out_file, job_id, label, bg_path)
+                jobs[job_id]["updated_at"] = time.time()
+                await asyncio.to_thread(make_short, input_path, start, end, caption, out_file, job_id, label, bg_path)
+                require_output_file(out_file, job_id)
                 output_files.append(out_file)
                 jobs[job_id]["progress"] = i + 1
+                jobs[job_id]["updated_at"] = time.time()
             jobs[job_id]["status"] = "done"
             jobs[job_id]["files"] = output_files
+            jobs[job_id]["updated_at"] = time.time()
+            logger.info("[%s] Shorts export completed: %s", job_id, output_files)
         except Exception as e:
             jobs[job_id]["status"] = "error"
             jobs[job_id]["error"] = str(e)
+            jobs[job_id]["updated_at"] = time.time()
+            logger.exception("[%s] Shorts export failed", job_id)
 
     asyncio.create_task(process())
     return {"job_id": job_id}
@@ -224,28 +321,54 @@ async def export_full(
     bg_file: str = Form(...),
 ):
     job_id = str(uuid.uuid4())[:8]
-    jobs[job_id] = {"status": "starting", "progress": 0, "total": 1}
+    now = time.time()
+    jobs[job_id] = {
+        "status": "queued",
+        "mode": "full",
+        "progress": 0,
+        "total": 1,
+        "files": [],
+        "created_at": now,
+        "updated_at": now,
+    }
 
     input_path = str(UPLOAD_DIR / zoom_file)
     bg_path = str(UPLOAD_DIR / bg_file)
 
     if not os.path.exists(input_path):
+        logger.warning("[%s] Zoom file not found: %s", job_id, input_path)
         raise HTTPException(400, "Zoom file not found")
     if not os.path.exists(bg_path):
+        logger.warning("[%s] Background file not found: %s", job_id, bg_path)
         raise HTTPException(400, "Background file not found")
 
     job_output_dir = OUTPUT_DIR / job_id
-    job_output_dir.mkdir(exist_ok=True)
+    job_output_dir.mkdir(parents=True, exist_ok=True)
     out_file = str(job_output_dir / "episode.mp4")
+    logger.info(
+        "[%s] Starting full export zoom=%s bg=%s output=%s",
+        job_id,
+        input_path,
+        bg_path,
+        out_file,
+    )
 
     async def process():
         try:
-            make_full(input_path, bg_path, out_file, job_id)
+            jobs[job_id]["status"] = "Processing full video..."
+            jobs[job_id]["updated_at"] = time.time()
+            await asyncio.to_thread(make_full, input_path, bg_path, out_file, job_id)
+            require_output_file(out_file, job_id)
             jobs[job_id]["status"] = "done"
             jobs[job_id]["files"] = [out_file]
+            jobs[job_id]["progress"] = 1
+            jobs[job_id]["updated_at"] = time.time()
+            logger.info("[%s] Full export completed: %s", job_id, out_file)
         except Exception as e:
             jobs[job_id]["status"] = "error"
             jobs[job_id]["error"] = str(e)
+            jobs[job_id]["updated_at"] = time.time()
+            logger.exception("[%s] Full export failed", job_id)
 
     asyncio.create_task(process())
     return {"job_id": job_id}
@@ -293,4 +416,4 @@ if __name__ == "__main__":
         webbrowser.open("http://localhost:8000")
 
     threading.Thread(target=open_browser, daemon=True).start()
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="warning")
+    uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
